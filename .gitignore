@@ -1,0 +1,6 @@
+/build/
+nbproject/private/
+*.class
+*.log
+.DS_Store
+
