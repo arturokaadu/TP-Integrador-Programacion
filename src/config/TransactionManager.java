@@ -8,6 +8,6 @@ package config;
  *
  * @author artur
  */
-public class TranscationManager {
+public class TransactionManager {
     
 }
