@@ -8,13 +8,13 @@ El diseño fue realizado previamente mediante un **diagrama UML** que guía la i
 
 ### Objetivos Académicos
 
--- Arquitectura en capas definida y creada en proyecto
--- Diagrama UML completo (entidades, DAO, services, config, relaciones 1→1)
--- Configuración de conexión a base de datos (DatabaseConnection)
--- Manejo de transacciones con `TransactionManager`
--- Entidades principales creadas: `Paciente`, `HistoriaClinica`, `TipoSangre`
--- Interfaces genéricas para DAO y Service (`GenericDAO`, `GenericService`)
--- DAO y Services
+- Arquitectura en capas definida y creada en proyecto
+- Diagrama UML completo (entidades, DAO, services, config, relaciones 1→1)
+- Configuración de conexión a base de datos (DatabaseConnection)
+- Manejo de transacciones con `TransactionManager`
+- Entidades principales creadas: `Paciente`, `HistoriaClinica`, `TipoSangre`
+- Interfaces genéricas para DAO y Service (`GenericDAO`, `GenericService`)
+- DAO y Services
 
 
 ## Requisitos del Sistema
