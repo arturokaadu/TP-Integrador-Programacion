@@ -14,6 +14,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -81,7 +82,7 @@ public class PacienteDao implements GenericDao<Paciente> {
         // 2. Mapear HistoriaClinica si la FK no es nula
         long fkHistoriaClinica = rs.getLong("fk_historia_clinica");
         
-        // La conexión puede ser NULL o 0 si el LEFT JOIN no encontró coincidencia
+        // La FK puede ser NULL o 0 si el LEFT JOIN no encontró coincidencia
         if (rs.wasNull() || fkHistoriaClinica == 0) {
             paciente.setHistoriaClinica(null);
         } else {
@@ -117,9 +118,13 @@ public class PacienteDao implements GenericDao<Paciente> {
      */
     @Override
     public Paciente crearEntidad(Paciente entidad) throws SQLException {
-        // Obtenemos la conexión, asegurando que haya una transacción (REQUIRED_TRANSACTION = true)
-        try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
-             PreparedStatement ps = conn.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS)) {
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        try {
+            ps = conn.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS);
 
             int i = 1;
             ps.setString(i++, entidad.getNombre());
@@ -149,16 +154,28 @@ public class PacienteDao implements GenericDao<Paciente> {
             }
 
             // Obtener el ID autogenerado
-            try (ResultSet rs = ps.getGeneratedKeys()) {
-                if (rs.next()) {
-                    entidad.setId(rs.getLong(1));
-                    System.out.println("DEBUG: Paciente creado con ID: " + entidad.getId());
-                } else {
-                    throw new SQLException("Fallo al crear el Paciente, no se obtuvo ID generado.");
-                }
+            rs = ps.getGeneratedKeys();
+            if (rs.next()) {
+                entidad.setId(rs.getLong(1));
+                System.out.println("DEBUG: Paciente creado con ID: " + entidad.getId());
+            } else {
+                throw new SQLException("Fallo al crear el Paciente, no se obtuvo ID generado.");
             }
-        } // Cierre automático de recursos y gestión de conexión por TransactionManager
-        return entidad;
+
+            return entidad;
+        } finally {
+            // Cerrar recursos de sentencia/resultset
+            if (rs != null) {
+                try { rs.close(); } catch (SQLException ignore) {}
+            }
+            if (ps != null) {
+                try { ps.close(); } catch (SQLException ignore) {}
+            }
+            // Si no estamos en una transacción, cerramos la conexión (fue creada por el DAO)
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
+        }
     }
 
     /**
@@ -170,19 +187,26 @@ public class PacienteDao implements GenericDao<Paciente> {
      */
     @Override
     public Paciente leerEntidad(long id) throws SQLException {
-        // Obtenemos la conexión sin requerir una transacción
-        try (Connection conn = TransactionManager.getConnection(false);
-             PreparedStatement ps = conn.prepareStatement(SELECT_BY_ID_SQL)) {
-            
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(false);
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        try {
+            ps = conn.prepareStatement(SELECT_BY_ID_SQL);
             ps.setLong(1, id);
-            
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapResultSetToEntity(rs);
-                }
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return mapResultSetToEntity(rs);
+            }
+            return null;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (SQLException ignore) {}
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
             }
         }
-        return null; // Retorna null si no se encuentra la entidad o está eliminada
     }
 
     /**
@@ -196,9 +220,13 @@ public class PacienteDao implements GenericDao<Paciente> {
         if (entidad.getId() <= 0) {
             throw new SQLException("El ID del Paciente es inválido para la actualización.");
         }
-        
-        try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
-             PreparedStatement ps = conn.prepareStatement(UPDATE_SQL)) {
+
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
+        PreparedStatement ps = null;
+
+        try {
+            ps = conn.prepareStatement(UPDATE_SQL);
 
             int i = 1;
             ps.setString(i++, entidad.getNombre());
@@ -222,9 +250,16 @@ public class PacienteDao implements GenericDao<Paciente> {
             
             ps.setLong(i++, entidad.getId()); // Parámetro para la cláusula WHERE
 
-            ps.executeUpdate();
-            
-        } // Cierre automático/gestionado por TransactionManager
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                throw new SQLException("No se pudo actualizar el Paciente con ID: " + entidad.getId());
+            }
+        } finally {
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
+        }
     }
 
     /**
@@ -238,14 +273,24 @@ public class PacienteDao implements GenericDao<Paciente> {
         if (id <= 0) {
             throw new SQLException("El ID del Paciente es inválido para la eliminación.");
         }
-        
-        try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
-             PreparedStatement ps = conn.prepareStatement(DELETE_SQL)) {
-            
+
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
+        PreparedStatement ps = null;
+
+        try {
+            ps = conn.prepareStatement(DELETE_SQL);
             ps.setLong(1, id);
-            ps.executeUpdate();
-            
-        } // Cierre automático/gestionado por TransactionManager
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                throw new SQLException("No se encontró Paciente con ID: " + id);
+            }
+        } finally {
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
+        }
     }
     
     /**
@@ -259,14 +304,24 @@ public class PacienteDao implements GenericDao<Paciente> {
         if (id <= 0) {
             throw new SQLException("El ID del Paciente es inválido para la recuperación.");
         }
-        
-        try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
-             PreparedStatement ps = conn.prepareStatement(RECOVER_SQL)) {
-            
+
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
+        PreparedStatement ps = null;
+
+        try {
+            ps = conn.prepareStatement(RECOVER_SQL);
             ps.setLong(1, id);
-            ps.executeUpdate();
-            
-        } // Cierre automático/gestionado por TransactionManager
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                throw new SQLException("No se encontró Paciente con ID: " + id);
+            }
+        } finally {
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
+        }
     }
 
 
@@ -279,16 +334,25 @@ public class PacienteDao implements GenericDao<Paciente> {
     @Override
     public List<Paciente> leerTodo() throws SQLException {
         List<Paciente> lista = new ArrayList<>();
-        // Obtenemos la conexión sin requerir una transacción
-        try (Connection conn = TransactionManager.getConnection(false);
-             PreparedStatement ps = conn.prepareStatement(SELECT_ALL_ACTIVE_SQL);
-             ResultSet rs = ps.executeQuery()) {
-            
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(false);
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        try {
+            ps = conn.prepareStatement(SELECT_ALL_ACTIVE_SQL);
+            rs = ps.executeQuery();
             while (rs.next()) {
                 lista.add(mapResultSetToEntity(rs));
             }
+            return lista;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (SQLException ignore) {}
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
         }
-        return lista;
     }
     
     /**
@@ -299,17 +363,26 @@ public class PacienteDao implements GenericDao<Paciente> {
      */
     public Paciente buscarPorDni(String dni) throws SQLException {
         final String SELECT_BY_DNI_SQL = "SELECT p.*, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON p.fk_historia_clinica = hc.id WHERE p.dni = ? AND p.eliminado = FALSE";
-        // Obtenemos la conexión sin requerir una transacción
-        try (Connection conn = TransactionManager.getConnection(false);
-             PreparedStatement ps = conn.prepareStatement(SELECT_BY_DNI_SQL)) {
+        
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(false);
+        PreparedStatement ps = null;
+        ResultSet rs = null;
 
+        try {
+            ps = conn.prepareStatement(SELECT_BY_DNI_SQL);
             ps.setString(1, dni);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapResultSetToEntity(rs);
-                }
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return mapResultSetToEntity(rs);
+            }
+            return null;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (SQLException ignore) {}
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
             }
         }
-        return null;
     }
 }

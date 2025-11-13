@@ -54,7 +54,11 @@ public class HistoriaClinicaDao implements GenericDao<HistoriaClinica> {
         String nroHistoria = rs.getString("nro_historia");
         
         // Mapeo seguro para TipoSangre (usa la función de mapeo del ENUM)
-        TipoSangre grupoSanguineo = TipoSangre.fromDbValue(rs.getString("grupo_sanguineo")); 
+        TipoSangre grupoSanguineo = null;
+        String dbGrupo = rs.getString("grupo_sanguineo");
+        if (dbGrupo != null && !dbGrupo.isEmpty()) {
+            grupoSanguineo = TipoSangre.fromDbValue(dbGrupo);
+        }
         
         String antecedentes = rs.getString("antecedentes");
         String medicacionActual = rs.getString("medicacion_actual");
@@ -67,181 +71,222 @@ public class HistoriaClinicaDao implements GenericDao<HistoriaClinica> {
     /**
      * Inserta un nuevo objeto HistoriaClinica en la base de datos.
      * Requiere una transacción activa.
-     * @param entidad Objeto HistoriaClinica a insertar.
-     * @return El objeto HistoriaClinica con su ID generado por la base de datos asignado.
-     * @throws SQLException Si ocurre un error de acceso a la base de datos.
      */
     @Override
     public HistoriaClinica crearEntidad(HistoriaClinica entidad) throws SQLException {
-        // Se obtiene la conexión obligando a que exista una transacción activa.
-        try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
-             PreparedStatement ps = conn.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS)) {
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
+        PreparedStatement ps = null;
+        ResultSet rs = null;
 
+        try {
+            ps = conn.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS);
             int i = 1;
             ps.setString(i++, entidad.getNroHistoria());
-            // Guardamos el valor String del ENUM en la BD
-            ps.setString(i++, entidad.getGrupoSanguineo().getValor()); 
+            ps.setString(i++, entidad.getGrupoSanguineo() != null ? entidad.getGrupoSanguineo().getValor() : null);
             ps.setString(i++, entidad.getAntecedentes());
             ps.setString(i++, entidad.getMedicacionActual());
             ps.setString(i++, entidad.getObservaciones());
             ps.setBoolean(i++, entidad.isEliminado());
 
-            int affectedRows = ps.executeUpdate();
-            if (affectedRows == 0) {
+            int affected = ps.executeUpdate();
+            if (affected == 0) {
                 throw new SQLException("Fallo al crear la Historia Clinica, no se modificaron filas.");
             }
 
-            // Obtener el ID autogenerado
-            try (ResultSet rs = ps.getGeneratedKeys()) {
-                if (rs.next()) {
-                    entidad.setId(rs.getLong(1));
-                    System.out.println("DEBUG: HistoriaClinica creada con ID: " + entidad.getId());
-                } else {
-                    throw new SQLException("Fallo al crear la Historia Clinica, no se obtuvo ID generado.");
-                }
+            rs = ps.getGeneratedKeys();
+            if (rs.next()) {
+                entidad.setId(rs.getLong(1));
+                System.out.println("DEBUG: HistoriaClinica creada con ID: " + entidad.getId());
+            } else {
+                throw new SQLException("Fallo al crear la Historia Clinica, no se obtuvo ID generado.");
             }
-        } // Cierre/mantenimiento de Connection/PreparedStatement manejado por TransactionManager
-        return entidad;
+
+            return entidad;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (SQLException ignore) {}
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
+        }
     }
 
     /**
      * Lee una HistoriaClinica activa por su ID.
-     * No requiere transacción (REQUIRED_TRANSACTION = false).
-     * @param id El ID de la HistoriaClinica a buscar.
-     * @return El objeto HistoriaClinica si se encuentra (activo), o null.
-     * @throws SQLException Si ocurre un error de acceso a la base de datos.
+     * No requiere transacción.
      */
     @Override
     public HistoriaClinica leerEntidad(long id) throws SQLException {
-        // Obtenemos la conexión sin requerir una transacción (se cierra al salir del try-with-resources)
-        try (Connection conn = TransactionManager.getConnection(false); 
-             PreparedStatement ps = conn.prepareStatement(SELECT_BY_ID_SQL)) {
-            
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(false);
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        try {
+            ps = conn.prepareStatement(SELECT_BY_ID_SQL);
             ps.setLong(1, id);
-            
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapResultSetToEntity(rs);
-                }
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return mapResultSetToEntity(rs);
+            }
+            return null;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (SQLException ignore) {}
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
             }
         }
-        return null; // Retorna null si no se encuentra la entidad
     }
 
     /**
      * Actualiza una HistoriaClinica existente en la base de datos.
      * Requiere una transacción activa.
-     * @param entidad Objeto HistoriaClinica a actualizar.
-     * @throws SQLException Si ocurre un error de acceso a la base de datos o el ID es inválido.
      */
     @Override
     public void actualizarEntidad(HistoriaClinica entidad) throws SQLException {
         if (entidad.getId() <= 0) {
             throw new SQLException("El ID de la Historia Clinica es inválido para la actualización.");
         }
-        
-        try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
-             PreparedStatement ps = conn.prepareStatement(UPDATE_SQL)) {
 
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
+        PreparedStatement ps = null;
+
+        try {
+            ps = conn.prepareStatement(UPDATE_SQL);
             int i = 1;
             ps.setString(i++, entidad.getNroHistoria());
-            ps.setString(i++, entidad.getGrupoSanguineo().getValor());
+            ps.setString(i++, entidad.getGrupoSanguineo() != null ? entidad.getGrupoSanguineo().getValor() : null);
             ps.setString(i++, entidad.getAntecedentes());
             ps.setString(i++, entidad.getMedicacionActual());
             ps.setString(i++, entidad.getObservaciones());
-            ps.setLong(i++, entidad.getId()); // Parámetro para la cláusula WHERE
+            ps.setLong(i++, entidad.getId());
 
-            ps.executeUpdate();
-            
-        } // Cierre automático/gestionado por TransactionManager
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                throw new SQLException("No se pudo actualizar la Historia Clinica con ID: " + entidad.getId());
+            }
+        } finally {
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
+        }
     }
 
     /**
-     * Realiza la eliminación lógica de una HistoriaClinica por su ID, marcando 'eliminado' como TRUE.
-     * Requiere una transacción activa.
-     * @param id El ID de la HistoriaClinica a eliminar.
-     * @throws SQLException Si ocurre un error de acceso a la base de datos o el ID es inválido.
+     * Elimina lógicamente una HistoriaClinica por su ID (soft delete).
+     * Requiere transacción activa.
      */
     @Override
     public void eliminarEntidad(long id) throws SQLException {
         if (id <= 0) {
             throw new SQLException("El ID de la Historia Clinica es inválido para la eliminación.");
         }
-        
-        // Baja LÓGICA
-        try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
-             PreparedStatement ps = conn.prepareStatement(DELETE_SQL)) {
-            
+
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
+        PreparedStatement ps = null;
+
+        try {
+            ps = conn.prepareStatement(DELETE_SQL);
             ps.setLong(1, id);
-            ps.executeUpdate();
-            
-        } // Cierre automático/gestionado por TransactionManager
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                throw new SQLException("No se encontró Historia Clinica con ID: " + id);
+            }
+        } finally {
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
+        }
     }
 
     /**
-     * Recupera lógicamente una HistoriaClinica por su ID, marcando 'eliminado' como FALSE.
-     * Requiere una transacción activa.
-     * @param id El ID de la entidad a recuperar.
-     * @throws SQLException Si ocurre un error de acceso a la base de datos o el ID es inválido.
+     * Recupera lógicamente una HistoriaClinica por su ID (undo soft delete).
+     * Requiere transacción activa.
      */
     @Override
     public void recuperarEntidad(long id) throws SQLException {
         if (id <= 0) {
             throw new SQLException("El ID de la Historia Clinica es inválido para la recuperación.");
         }
-        
-        // Recuperación LÓGICA
-        try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
-             PreparedStatement ps = conn.prepareStatement(RECOVER_SQL)) {
-            
-            ps.setLong(1, id);
-            ps.executeUpdate();
-            
-        } // Cierre automático/gestionado por TransactionManager
-    }
 
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
+        PreparedStatement ps = null;
+
+        try {
+            ps = conn.prepareStatement(RECOVER_SQL);
+            ps.setLong(1, id);
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                throw new SQLException("No se encontró Historia Clinica con ID: " + id);
+            }
+        } finally {
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
+        }
+    }
 
     /**
      * Retorna una lista de todas las Historias Clínicas activas (eliminado = FALSE).
      * No requiere transacción.
-     * @return Una lista de objetos HistoriaClinica.
-     * @throws SQLException Si ocurre un error de acceso a la base de datos.
      */
     @Override
     public List<HistoriaClinica> leerTodo() throws SQLException {
         List<HistoriaClinica> lista = new ArrayList<>();
-        // Consulta que filtra por 'eliminado = FALSE'
-        try (Connection conn = TransactionManager.getConnection(false);
-             PreparedStatement ps = conn.prepareStatement(SELECT_ALL_ACTIVE_SQL);
-             ResultSet rs = ps.executeQuery()) {
-            
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(false);
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        try {
+            ps = conn.prepareStatement(SELECT_ALL_ACTIVE_SQL);
+            rs = ps.executeQuery();
             while (rs.next()) {
                 lista.add(mapResultSetToEntity(rs));
             }
+            return lista;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (SQLException ignore) {}
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
+            }
         }
-        return lista;
     }
-    
+
     /**
-     * Retorna una HistoriaClinica por ID, incluyendo registros que han sido
-     * eliminados lógicamente (ignorando el flag 'eliminado').
-     * @param id ID de la entidad.
-     * @return HistoriaClinica encontrada (activa o eliminada), o null.
-     * @throws SQLException Si ocurre un error de acceso a la base de datos.
+     * Lee una HistoriaClinica por id incluyendo eliminados (no usa flag eliminado).
+     * Útil para auditoría o recuperación.
      */
     public HistoriaClinica leerEntidadConEliminados(long id) throws SQLException {
         final String SELECT_BY_ID_ALL_SQL = "SELECT id, nro_historia, grupo_sanguineo, antecedentes, medicacion_actual, observaciones, eliminado FROM historia_clinica WHERE id = ?";
-        // Obtenemos la conexión sin requerir una transacción
-        try (Connection conn = TransactionManager.getConnection(false);
-             PreparedStatement ps = conn.prepareStatement(SELECT_BY_ID_ALL_SQL)) {
+        boolean txActive = TransactionManager.isTransactionActive();
+        Connection conn = TransactionManager.getConnection(false);
+        PreparedStatement ps = null;
+        ResultSet rs = null;
 
+        try {
+            ps = conn.prepareStatement(SELECT_BY_ID_ALL_SQL);
             ps.setLong(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapResultSetToEntity(rs);
-                }
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return mapResultSetToEntity(rs);
+            }
+            return null;
+        } finally {
+            if (rs != null) try { rs.close(); } catch (SQLException ignore) {}
+            if (ps != null) try { ps.close(); } catch (SQLException ignore) {}
+            if (!txActive) {
+                try { conn.close(); } catch (SQLException ignore) {}
             }
         }
-        return null;
     }
 }
