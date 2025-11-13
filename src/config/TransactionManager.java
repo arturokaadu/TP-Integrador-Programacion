@@ -1,120 +1,145 @@
 /*
- * Clase utilitaria para manejar las transacciones en la base de datos.
- *
- * Por ejemplo, en una Transaccion como una "sesión de trabajo segura" con la DB.
- * queremos que todas las operaciones (ej: guardar Paciente Y guardar HistoriaClínica)
- * se hagan con la misma conexion, como si fuera un solo paso.
- *
- * Para eso usamos un ThreadLocal<Connection>, que es como un "bolsillo"
- * privado para cada hilo, asegurando que nadie más toque esa conexión.
+ * Clase para gestionar la conexión y las transacciones de manera NO estática.
+ * Implementa AutoCloseable para uso seguro con try-with-resources en la capa Service,
+ * asegurando el control total del ciclo de vida de la Connection (setAutoCommit/commit/rollback/cierre).
+ * basada en el ejemplo del profe
  */
 
 package config;
 
-import java.sql.Connection;
-import java.sql.SQLException;
+/**
+ *
+ * @author emanuelbrahim
+ */
 
-public final class TransactionManager {
+import java.sql.Connection; //Importa la libreria Java.sql connection
+import java.sql.SQLException; //Importa la libreria Java.sql SQLException
 
-    // "Bolsillo" privado por hilo de ejecución, guarda la conexión activa
-    private static final ThreadLocal<Connection> THREAD_LOCAL_CONNECTION = new ThreadLocal<>();
+// Implementamos AutoCloseable para que el bloque try-with-resources la cierre automáticamente.
+public class TransactionManager implements AutoCloseable { 
 
-    // Constructor privado (no se instancia)
-    private TransactionManager() {
-        throw new UnsupportedOperationException("Esta clase no se puede instanciar.");
+    // - conn: Connection
+    private Connection conn;
+
+    // - transactionActive: boolean
+    private boolean transactionActive = false;
+
+    // + TransactionManager(conn: Connection) (Constructor)
+    public TransactionManager(Connection conn) {
+        if (conn == null) {
+            throw new IllegalArgumentException("La conexión no puede ser nula.");
+        }
+        this.conn = conn;
     }
 
+    // + startTransaction(): void
     /**
-     * Arranca una transacción.
-     * 1. Obtiene una nueva conexión.
-     * 2. Desactiva el auto-commit.
-     * 3. Guarda la conexión en el ThreadLocal.
+     * Inicia la transacción desactivando el auto-commit.
      */
-    public static void startTransaction() throws SQLException {
-        if (isTransactionActive()) {
-            throw new IllegalStateException("Ya existe una transacción activa en este hilo.");
+    public void startTransaction() throws SQLException {
+        if (this.conn == null || this.conn.isClosed()) {
+            throw new SQLException("No se puede iniciar la transacción: conexión no disponible o cerrada.");
         }
-
-        Connection connection = DatabaseConnection.getConnection();
-        connection.setAutoCommit(false);
-        THREAD_LOCAL_CONNECTION.set(connection);
+        if (this.transactionActive) {
+            throw new IllegalStateException("Esta instancia de TransactionManager ya tiene una transacción activa.");
+        }
+        
+        this.conn.setAutoCommit(false);
+        this.transactionActive = true;
         System.out.println("[DEBUG] Transacción iniciada.");
     }
 
+    // + commit(): void
     /**
-     * Confirma los cambios (commit) y cierra la conexión.
+     * Confirma los cambios y cierra los recursos (restablece auto-commit y cierra la conexión).
      */
-    public static void commit() throws SQLException {
-        Connection connection = getConnection();
+    public void commit() throws SQLException {
+        if (!this.transactionActive) {
+            throw new IllegalStateException("No hay transacción activa para hacer commit.");
+        }
         try {
-            connection.commit();
+            this.conn.commit();
             System.out.println("[DEBUG] Commit realizado correctamente.");
+            this.transactionActive = false; // Marcamos como inactiva tras el commit
         } finally {
-            closeAndRemoveConnection(connection);
+            close(); // Cierra los recursos (conexión, restablece auto-commit)
         }
     }
 
+    // + rollback(): void
     /**
-     * Revierte los cambios (rollback) y cierra la conexión.
+     * Revierte los cambios y cierra los recursos (restablece auto-commit y cierra la conexión).
      */
-    public static void rollback() throws SQLException {
-        Connection connection = getConnection();
-        try {
-            connection.rollback();
-            System.out.println("[DEBUG] Rollback realizado correctamente.");
-        } finally {
-            closeAndRemoveConnection(connection);
+    public void rollback() throws SQLException {
+        if (this.conn == null || this.conn.isClosed()) {
+             // La conexión ya está cerrada, no hay nada que revertir.
+             return;
         }
+        
+        // Si hay una transacción activa (no se hizo commit), hacemos rollback
+        if (this.transactionActive) {
+            try {
+                this.conn.rollback();
+                System.out.println("[DEBUG] Rollback realizado correctamente.");
+            } catch (SQLException e) {
+                System.err.println("Error durante el rollback: " + e.getMessage());
+                throw e; // Relanzamos el error si falla el rollback
+            } finally {
+                this.transactionActive = false; // Marcamos como inactiva tras el rollback
+            }
+        }
+        // Llamamos a close para restablecer autoCommit y cerrar la conexión
+        close();
     }
 
+    // @Override
+    // + close(): void (Ahora usa @Override para AutoCloseable, cumpliendo el mismo objetivo)
     /**
-     * Cierra la conexión y limpia el ThreadLocal.
+     * Implementación de AutoCloseable.
+     * Siempre restablece el auto-commit y cierra la conexión, manejando el estado.
      */
-    private static void closeAndRemoveConnection(Connection connection) {
-        try {
-            if (connection != null) {
-                connection.setAutoCommit(true);
-                connection.close();
+    @Override
+    public void close() {
+        if (this.conn != null) {
+            try {
+                // 1. Si la transacción sigue activa, es un error no manejado, intentamos rollback
+                if (this.transactionActive) {
+                    // System.err.println("[DEBUG] Transacción activa al cerrar. Intentando Rollback...");
+                    this.conn.rollback(); // Forzamos el rollback si no se hizo ni commit ni rollback
+                }
+                
+                // 2. Restablecer auto-commit
+                if (!this.conn.getAutoCommit()) {
+                    this.conn.setAutoCommit(true);
+                }
+                
+                // 3. Cerrar la conexión
+                this.conn.close();
                 System.out.println("[DEBUG] Conexión cerrada y liberada.");
+                
+            } catch (SQLException e) {
+                System.err.println("Advertencia: No se pudo cerrar la conexión o falló el rollback implícito: " + e.getMessage());
+            } finally {
+                // 4. Limpiar atributos
+                this.conn = null;
+                this.transactionActive = false;
             }
-        } catch (SQLException e) {
-            System.err.println("Advertencia: No se pudo cerrar la conexión: " + e.getMessage());
-        } finally {
-            THREAD_LOCAL_CONNECTION.remove();
         }
     }
 
+    // + isTransactionActive(): boolean
     /**
-     * Retorna la conexión actual.
-     * Si hay una transacción activa, devuelve la compartida.
-     * Si no hay, crea una nueva (que deberá cerrarse manualmente).
+     * Indica si la transacción fue iniciada y está pendiente de commit o rollback.
      */
-    public static Connection getConnection() throws SQLException {
-        Connection connection = THREAD_LOCAL_CONNECTION.get();
-        if (connection == null) {
-            return DatabaseConnection.getConnection();
-        }
-        return connection;
+    public boolean isTransactionActive() {
+        return this.transactionActive;
     }
 
+    // + getConnection(): Connection
     /**
-     * Versión de getConnection con control obligatorio.
+     * Obtiene la conexión compartida para pasarla a los DAOs.
      */
-    public static Connection getConnection(boolean required) throws SQLException {
-        Connection connection = THREAD_LOCAL_CONNECTION.get();
-        if (connection == null) {
-            if (required) {
-                throw new IllegalStateException("No hay una transacción activa. El Service debe iniciar una antes de llamar a los DAO.");
-            }
-            return DatabaseConnection.getConnection();
-        }
-        return connection;
-    }
-
-    /**
-     * Indica si hay una transacción activa en este hilo.
-     */
-    public static boolean isTransactionActive() {
-        return THREAD_LOCAL_CONNECTION.get() != null;
+    public Connection getConnection() {
+        return this.conn;
     }
 }
