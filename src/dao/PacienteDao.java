@@ -49,7 +49,7 @@ public class PacienteDao implements GenericDao<Paciente> {
     // --- Utilidades y Configuración ---
 
     /** Formateador estándar para convertir fechas a y desde la base de datos (yyyy-MM-dd). */
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter FORMATO_FECHA_DB = DateTimeFormatter.ofPattern("yyyy-MM-dd"); // <-- CAMBIO DE NOMBRE
     
     /** Bandera que indica si los métodos de modificación requieren estar dentro de una transacción. */
     private static final boolean REQUIRED_TRANSACTION = true;
@@ -133,12 +133,13 @@ public class PacienteDao implements GenericDao<Paciente> {
                 ps.setNull(i++, java.sql.Types.DATE);
             }
             
-            // Manejo seguro de la FK (HistoriaClinica)
-            if (entidad.getHistoriaClinica() != null && entidad.getHistoriaClinica().getId() > 0) {
-                ps.setLong(i++, entidad.getHistoriaClinica().getId());
+            // Manejo seguro de la FK (HistoriaClinica) <-- INICIO CAMBIO
+            HistoriaClinica hc = entidad.getHistoriaClinica();
+            if (hc != null && hc.getId() > 0) {
+                ps.setLong(i++, hc.getId());
             } else {
                 ps.setNull(i++, java.sql.Types.BIGINT);
-            }
+            } // <-- FIN CAMBIO
             
             ps.setBoolean(i++, entidad.isEliminado());
 
@@ -211,12 +212,13 @@ public class PacienteDao implements GenericDao<Paciente> {
                 ps.setNull(i++, java.sql.Types.DATE);
             }
             
-            // Manejo seguro de la FK (HistoriaClinica)
-            if (entidad.getHistoriaClinica() != null && entidad.getHistoriaClinica().getId() > 0) {
-                ps.setLong(i++, entidad.getHistoriaClinica().getId());
+            // Manejo seguro de la FK (HistoriaClinica) <-- INICIO CAMBIO
+            HistoriaClinica hc = entidad.getHistoriaClinica();
+            if (hc != null && hc.getId() > 0) {
+                ps.setLong(i++, hc.getId());
             } else {
                 ps.setNull(i++, java.sql.Types.BIGINT);
-            }
+            } // <-- FIN CAMBIO
             
             ps.setLong(i++, entidad.getId()); // Parámetro para la cláusula WHERE
 
