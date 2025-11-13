@@ -1,6 +1,7 @@
 /*
- * DAO para la entidad Paciente.
- * Implementa GenericDao y maneja la relación 1:1 con HistoriaClinica.
+ * Implementación del patrón Data Access Object (DAO) para la entidad Paciente.
+ * Se encarga de la persistencia de los objetos Paciente en la base de datos,
+ * incluyendo el mapeo de la relación 1:1 con HistoriaClinica.
  */
 package dao;
 
@@ -20,32 +21,54 @@ import java.util.List;
 
 public class PacienteDao implements GenericDao<Paciente> {
 
-    // Constantes SQL
-    // Nota: fk_historia_clinica es la clave foránea a la tabla historia_clinica
+    // --- Constantes SQL para Operaciones CRUD ---
+
+    /** SQL para la inserción de un nuevo Paciente. */
     private static final String INSERT_SQL = "INSERT INTO paciente (nombre, apellido, dni, fecha_nacimiento, fk_historia_clinica, eliminado) VALUES (?, ?, ?, ?, ?, ?)";
+    
+    /** * SQL para leer un Paciente activo por ID. 
+     * Utiliza LEFT JOIN para traer los datos de HistoriaClinica asociados.
+     * hc.eliminado se utiliza como alias 'hc_eliminado' para evitar colisión de nombres.
+     */
     private static final String SELECT_BY_ID_SQL = "SELECT p.*, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON p.fk_historia_clinica = hc.id WHERE p.id = ? AND p.eliminado = FALSE";
+    
+    /** SQL para la actualización de los campos principales del Paciente y su FK de HistoriaClinica. */
     private static final String UPDATE_SQL = "UPDATE paciente SET nombre = ?, apellido = ?, dni = ?, fecha_nacimiento = ?, fk_historia_clinica = ? WHERE id = ?";
+    
+    /** SQL para la eliminación lógica del Paciente (marcando 'eliminado' como TRUE). */
     private static final String DELETE_SQL = "UPDATE paciente SET eliminado = TRUE WHERE id = ?";
-    private static final String RECOVER_SQL = "UPDATE paciente SET eliminado = FALSE WHERE id = ?"; // NUEVO SQL para recuperación
+    
+    /** SQL para la recuperación lógica del Paciente (marcando 'eliminado' como FALSE). */
+    private static final String RECOVER_SQL = "UPDATE paciente SET eliminado = FALSE WHERE id = ?"; 
+    
+    /** * SQL para seleccionar todos los Pacientes activos.
+     * Incluye LEFT JOIN con HistoriaClinica para obtener la información completa.
+     */
     private static final String SELECT_ALL_ACTIVE_SQL = "SELECT p.*, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON p.fk_historia_clinica = hc.id WHERE p.eliminado = FALSE";
     
+    // --- Utilidades y Configuración ---
+
+    /** Formateador estándar para convertir fechas a y desde la base de datos (yyyy-MM-dd). */
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    
+    /** Bandera que indica si los métodos de modificación requieren estar dentro de una transacción. */
     private static final boolean REQUIRED_TRANSACTION = true;
 
     /**
-     * Mapea un ResultSet a un objeto Paciente, incluyendo la HistoriaClinica asociada (si existe).
-     * @param rs ResultSet de la consulta.
-     * @return Objeto Paciente.
-     * @throws SQLException Si hay un error al leer los datos.
+     * Mapea un ResultSet (resultado de la consulta DB) a un objeto Paciente.
+     * Incluye la lógica para mapear la HistoriaClinica asociada (si existe a través del LEFT JOIN).
+     * * @param rs ResultSet de la consulta SQL ejecutada.
+     * @return Objeto Paciente completamente poblado.
+     * @throws SQLException Si hay un error al leer los datos del ResultSet.
      */
     private Paciente mapResultSetToEntity(ResultSet rs) throws SQLException {
-        // 1. Mapear Paciente
+        // 1. Mapear datos de Paciente
         long id = rs.getLong("id");
         String nombre = rs.getString("nombre");
         String apellido = rs.getString("apellido");
         String dni = rs.getString("dni");
         
-        // Manejo de fechas
+        // Manejo seguro de fecha de nacimiento (puede ser nula)
         LocalDate fechaNacimiento = null;
         if (rs.getDate("fecha_nacimiento") != null) {
             fechaNacimiento = rs.getDate("fecha_nacimiento").toLocalDate();
@@ -55,26 +78,28 @@ public class PacienteDao implements GenericDao<Paciente> {
         
         Paciente paciente = new Paciente(id, eliminado, nombre, apellido, dni, fechaNacimiento);
         
-        // 2. Mapear HistoriaClinica si existe
+        // 2. Mapear HistoriaClinica si la FK no es nula
         long fkHistoriaClinica = rs.getLong("fk_historia_clinica");
         
-        // Verificar si la columna fk_historia_clinica es NULL
+        // La conexión puede ser NULL o 0 si el LEFT JOIN no encontró coincidencia
         if (rs.wasNull() || fkHistoriaClinica == 0) {
             paciente.setHistoriaClinica(null);
         } else {
-            // Asumiendo que la consulta SELECT_BY_ID_SQL o SELECT_ALL_ACTIVE_SQL 
-            // trae los campos de HistoriaClinica (JOIN).
-            
-            // Los campos de HC tienen el mismo nombre en el RS que en la tabla HC
-            // Por ejemplo: id (de Paciente), nro_historia, grupo_sanguineo, etc.
-            
-            // Nota: Para la HC, se necesita el ID que es la FK
+            // Mapear campos de HistoriaClinica (que vienen con el JOIN)
             String nroHistoria = rs.getString("nro_historia");
-            TipoSangre grupoSanguineo = TipoSangre.fromDbValue(rs.getString("grupo_sanguineo")); 
+            
+            // Mapeo seguro para TipoSangre (maneja valores NULL o vacíos de la DB)
+            TipoSangre grupoSanguineo = null;
+            String dbGrupoSanguineo = rs.getString("grupo_sanguineo");
+            if (dbGrupoSanguineo != null && !dbGrupoSanguineo.isEmpty()) {
+                 grupoSanguineo = TipoSangre.fromDbValue(dbGrupoSanguineo); 
+            }
+            
             String antecedentes = rs.getString("antecedentes");
             String medicacionActual = rs.getString("medicacion_actual");
             String observaciones = rs.getString("observaciones");
-            boolean hcEliminado = rs.getBoolean("hc_eliminado"); // Alias para evitar colisión con paciente.eliminado
+            // Usamos el alias 'hc_eliminado' del SQL
+            boolean hcEliminado = rs.getBoolean("hc_eliminado"); 
 
             HistoriaClinica hc = new HistoriaClinica(fkHistoriaClinica, hcEliminado, nroHistoria, grupoSanguineo, antecedentes, medicacionActual, observaciones);
             paciente.setHistoriaClinica(hc);
@@ -83,8 +108,16 @@ public class PacienteDao implements GenericDao<Paciente> {
         return paciente;
     }
 
+    /**
+     * Inserta un nuevo objeto Paciente en la base de datos.
+     * Requiere una transacción activa para asegurar la integridad.
+     * * @param entidad Objeto Paciente a insertar.
+     * @return El objeto Paciente con su ID generado por la base de datos asignado.
+     * @throws SQLException Si ocurre un error de acceso a la base de datos.
+     */
     @Override
     public Paciente crearEntidad(Paciente entidad) throws SQLException {
+        // Obtenemos la conexión, asegurando que haya una transacción (REQUIRED_TRANSACTION = true)
         try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
              PreparedStatement ps = conn.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS)) {
 
@@ -93,14 +126,14 @@ public class PacienteDao implements GenericDao<Paciente> {
             ps.setString(i++, entidad.getApellido());
             ps.setString(i++, entidad.getDni());
             
-            // Manejo de LocalDate
+            // Manejo seguro de fecha de nacimiento
             if (entidad.getFechaNacimiento() != null) {
                 ps.setDate(i++, java.sql.Date.valueOf(entidad.getFechaNacimiento()));
             } else {
                 ps.setNull(i++, java.sql.Types.DATE);
             }
             
-            // Manejo de la FK (HistoriaClinica)
+            // Manejo seguro de la FK (HistoriaClinica)
             if (entidad.getHistoriaClinica() != null && entidad.getHistoriaClinica().getId() > 0) {
                 ps.setLong(i++, entidad.getHistoriaClinica().getId());
             } else {
@@ -123,12 +156,20 @@ public class PacienteDao implements GenericDao<Paciente> {
                     throw new SQLException("Fallo al crear el Paciente, no se obtuvo ID generado.");
                 }
             }
-        } // Cierre automático/gestionado por TransactionManager
+        } // Cierre automático de recursos y gestión de conexión por TransactionManager
         return entidad;
     }
 
+    /**
+     * Lee un Paciente activo por su ID.
+     * No requiere transacción (REQUIRED_TRANSACTION = false) ya que es una operación de solo lectura.
+     * * @param id El ID del Paciente a buscar.
+     * @return El objeto Paciente si se encuentra (activo), o null.
+     * @throws SQLException Si ocurre un error de acceso a la base de datos.
+     */
     @Override
     public Paciente leerEntidad(long id) throws SQLException {
+        // Obtenemos la conexión sin requerir una transacción
         try (Connection conn = TransactionManager.getConnection(false);
              PreparedStatement ps = conn.prepareStatement(SELECT_BY_ID_SQL)) {
             
@@ -140,9 +181,15 @@ public class PacienteDao implements GenericDao<Paciente> {
                 }
             }
         }
-        return null; // Retorna null si no se encuentra la entidad
+        return null; // Retorna null si no se encuentra la entidad o está eliminada
     }
 
+    /**
+     * Actualiza un Paciente existente en la base de datos.
+     * Requiere una transacción activa.
+     * * @param entidad Objeto Paciente a actualizar.
+     * @throws SQLException Si ocurre un error de acceso a la base de datos o el ID es inválido.
+     */
     @Override
     public void actualizarEntidad(Paciente entidad) throws SQLException {
         if (entidad.getId() <= 0) {
@@ -157,33 +204,39 @@ public class PacienteDao implements GenericDao<Paciente> {
             ps.setString(i++, entidad.getApellido());
             ps.setString(i++, entidad.getDni());
             
-            // Manejo de LocalDate
+            // Manejo seguro de fecha de nacimiento
             if (entidad.getFechaNacimiento() != null) {
                 ps.setDate(i++, java.sql.Date.valueOf(entidad.getFechaNacimiento()));
             } else {
                 ps.setNull(i++, java.sql.Types.DATE);
             }
             
-            // Manejo de la FK (HistoriaClinica)
+            // Manejo seguro de la FK (HistoriaClinica)
             if (entidad.getHistoriaClinica() != null && entidad.getHistoriaClinica().getId() > 0) {
                 ps.setLong(i++, entidad.getHistoriaClinica().getId());
             } else {
                 ps.setNull(i++, java.sql.Types.BIGINT);
             }
             
-            ps.setLong(i++, entidad.getId()); // WHERE id = ?
+            ps.setLong(i++, entidad.getId()); // Parámetro para la cláusula WHERE
 
             ps.executeUpdate();
             
         } // Cierre automático/gestionado por TransactionManager
     }
 
+    /**
+     * Realiza la eliminación lógica de un Paciente por su ID, marcando 'eliminado' como TRUE.
+     * Requiere una transacción activa.
+     * * @param id El ID del Paciente a eliminar.
+     * @throws SQLException Si ocurre un error de acceso a la base de datos o el ID es inválido.
+     */
     @Override
     public void eliminarEntidad(long id) throws SQLException {
         if (id <= 0) {
             throw new SQLException("El ID del Paciente es inválido para la eliminación.");
         }
-        // Baja LÓGICA: se establece 'eliminado = TRUE'
+        
         try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
              PreparedStatement ps = conn.prepareStatement(DELETE_SQL)) {
             
@@ -194,16 +247,17 @@ public class PacienteDao implements GenericDao<Paciente> {
     }
     
     /**
-     * Recupera lógicamente una entidad por su ID (marca 'eliminado' como false).
-     * @param id El ID de la entidad a recuperar.
-     * @throws SQLException Si ocurre un error de acceso a la base de datos.
+     * Recupera lógicamente una entidad por su ID, marcando 'eliminado' como FALSE.
+     * Requiere una transacción activa.
+     * * @param id El ID de la entidad a recuperar.
+     * @throws SQLException Si ocurre un error de acceso a la base de datos o el ID es inválido.
      */
     @Override
     public void recuperarEntidad(long id) throws SQLException {
         if (id <= 0) {
             throw new SQLException("El ID del Paciente es inválido para la recuperación.");
         }
-        // Recuperación LÓGICA: se establece 'eliminado = FALSE'
+        
         try (Connection conn = TransactionManager.getConnection(REQUIRED_TRANSACTION);
              PreparedStatement ps = conn.prepareStatement(RECOVER_SQL)) {
             
@@ -214,10 +268,16 @@ public class PacienteDao implements GenericDao<Paciente> {
     }
 
 
+    /**
+     * Retorna una lista de todos los Pacientes activos (eliminado = FALSE).
+     * No requiere transacción.
+     * * @return Una lista de objetos Paciente.
+     * @throws SQLException Si ocurre un error de acceso a la base de datos.
+     */
     @Override
     public List<Paciente> leerTodo() throws SQLException {
         List<Paciente> lista = new ArrayList<>();
-        // Baja LÓGICA: solo trae registros con 'eliminado = FALSE'
+        // Obtenemos la conexión sin requerir una transacción
         try (Connection conn = TransactionManager.getConnection(false);
              PreparedStatement ps = conn.prepareStatement(SELECT_ALL_ACTIVE_SQL);
              ResultSet rs = ps.executeQuery()) {
@@ -230,13 +290,14 @@ public class PacienteDao implements GenericDao<Paciente> {
     }
     
     /**
-     * Busca un paciente por su número de DNI.
-     * @param dni El DNI a buscar.
-     * @return Paciente encontrado (activo), o null.
+     * Busca un paciente activo por su número de DNI.
+     * * @param dni El DNI del Paciente a buscar.
+     * @return El objeto Paciente encontrado (activo), o null si no existe.
      * @throws SQLException Si ocurre un error de acceso a la base de datos.
      */
     public Paciente buscarPorDni(String dni) throws SQLException {
         final String SELECT_BY_DNI_SQL = "SELECT p.*, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON p.fk_historia_clinica = hc.id WHERE p.dni = ? AND p.eliminado = FALSE";
+        // Obtenemos la conexión sin requerir una transacción
         try (Connection conn = TransactionManager.getConnection(false);
              PreparedStatement ps = conn.prepareStatement(SELECT_BY_DNI_SQL)) {
 
