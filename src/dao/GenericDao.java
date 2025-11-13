@@ -4,7 +4,7 @@
  */
 package dao;
 
-import entities.Base; // Importante para la restricción
+import entities.Base; //ejemplo con la entidad base
 import java.sql.SQLException;
 import java.util.List;
 
@@ -14,7 +14,7 @@ import java.util.List;
  * @param <T> El tipo de la entidad que el DAO manejará (debe extender de Base).
  * @author belenyardebuller
  */
-public interface GenericDao<T extends Base> { // Restricción importante!
+public interface GenericDao<T extends Base> { 
 
     /**
      * Inserta o crea una nueva entidad en la base de datos.
@@ -22,7 +22,7 @@ public interface GenericDao<T extends Base> { // Restricción importante!
      * @return El objeto entidad con su ID generado por la base de datos asignado.
      * @throws SQLException Si ocurre un error de acceso a la base de datos.
      */
-    T crearEntidad(T entidad) throws SQLException; // o simplemente 'crear'
+    T crearEntidad(T entidad) throws SQLException;
 
     /**
      * Lee una entidad por su identificador único (ID).
@@ -30,33 +30,33 @@ public interface GenericDao<T extends Base> { // Restricción importante!
      * @return La entidad si se encuentra, o null si no existe.
      * @throws SQLException Si ocurre un error de acceso a la base de datos.
      */
-    T leerEntidad(long id) throws SQLException; // o 'leer'
+    T leerEntidad(long id) throws SQLException; 
 
     /**
      * Actualiza una entidad existente en la base de datos.
      * @param entidad Objeto entidad a actualizar.
      * @throws SQLException Si ocurre un error de acceso a la base de datos.
      */
-    void actualizarEntidad(T entidad) throws SQLException; // o 'actualizar'
+    void actualizarEntidad(T entidad) throws SQLException; 
 
     /**
      * Elimina lógicamente una entidad por su ID (marca 'eliminado' como true).
      * @param id El ID de la entidad a eliminar.
      * @throws SQLException Si ocurre un error de acceso a la base de datos.
      */
-    void eliminarEntidad(long id) throws SQLException; // o 'eliminar'
+    void eliminarEntidad(long id) throws SQLException; 
 
     /**
      * Recupera una entidad eliminada lógicamente por su ID (marca 'eliminado' como false).
      * @param id El ID de la entidad a recuperar.
      * @throws SQLException Si ocurre un error de acceso a la base de datos.
      */
-    void recuperarEntidad(long id) throws SQLException; // ¡NUEVO MÉTODO!
+    void recuperarEntidad(long id) throws SQLException; 
 
     /**
      * Retorna una lista de todas las entidades activas (eliminado = false).
      * @return Una lista de entidades.
      * @throws SQLException Si ocurre un error de acceso a la base de datos.
      */
-    List<T> leerTodo() throws SQLException; // o 'getAll'
+    List<T> leerTodo() throws SQLException; 
 }
