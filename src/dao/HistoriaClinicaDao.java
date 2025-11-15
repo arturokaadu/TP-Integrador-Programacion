@@ -1,7 +1,7 @@
 /*
  * Implementación del patrón Data Access Object (DAO) para la entidad HistoriaClinica.
  * Implementa la interfaz GenericDao y se enfoca puramente en la persistencia de la entidad
- * HistoriaClinica, sin manejar la Foreign Key (FK) de Paciente.
+ * HistoriaClinica, asegurando que siempre se relacione con un Paciente.
  *
  * Los métodos modificadores reciben la Connection como parámetro, permitiendo su ejecución
  * dentro de un ámbito transaccional controlado por la capa Service.
@@ -29,7 +29,7 @@ import java.util.List;
 public class HistoriaClinicaDao implements GenericDao<HistoriaClinica> {
 
     // --- Constantes SQL ---
-    private static final String INSERT_SQL = "INSERT INTO historia_clinica (nro_historia, grupo_sanguineo, antecedentes, medicacion_actual, observaciones, eliminado) VALUES (?, ?, ?, ?, ?, ?)";
+    private static final String INSERT_SQL = "INSERT INTO historia_clinica (nro_historia, grupo_sanguineo, antecedentes, medicacion_actual, observaciones, eliminado, paciente_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
     private static final String SELECT_BY_ID_SQL = "SELECT id, nro_historia, grupo_sanguineo, antecedentes, medicacion_actual, observaciones, eliminado FROM historia_clinica WHERE id = ? AND eliminado = FALSE";
     private static final String UPDATE_SQL = "UPDATE historia_clinica SET nro_historia = ?, grupo_sanguineo = ?, antecedentes = ?, medicacion_actual = ?, observaciones = ? WHERE id = ?";
     private static final String DELETE_SQL = "UPDATE historia_clinica SET eliminado = TRUE WHERE id = ?";
@@ -39,7 +39,6 @@ public class HistoriaClinicaDao implements GenericDao<HistoriaClinica> {
     // --- CONSTANTES SQL para manejo del Borrado Lógico ---
     private static final String SELECT_ALL_DELETED_SQL = "SELECT id, nro_historia, grupo_sanguineo, antecedentes, medicacion_actual, observaciones, eliminado FROM historia_clinica WHERE eliminado = TRUE";
     private static final String COUNT_DELETED_SQL = "SELECT COUNT(*) FROM historia_clinica WHERE eliminado = TRUE";
-
 
     // --- Mapeo y Utilidades ---
 
@@ -77,24 +76,28 @@ public class HistoriaClinicaDao implements GenericDao<HistoriaClinica> {
 
     /**
      * Inserta una nueva Historia Clínica en la base de datos.
-     * Este método es transaccional y debe ser llamado con una Connection activa.
+     * Este método es transaccional y siempre requiere un pacienteId.
      * @param entidad Objeto HistoriaClinica a insertar.
      * @param conn Conexión compartida para la transacción activa.
+     * @param pacienteId ID del paciente al cual se relaciona la historia clínica.
      * @return La entidad HistoriaClinica con su ID autogenerado.
      * @throws SQLException Si falla la inserción o no se obtiene el ID.
      */
-    @Override
-    public HistoriaClinica crear(HistoriaClinica entidad, Connection conn) throws SQLException {
+    public HistoriaClinica crear(HistoriaClinica entidad, Connection conn, long pacienteId) throws SQLException {
+        if (pacienteId <= 0) {
+            throw new SQLException("El pacienteId debe ser mayor a 0 para crear una Historia Clinica.");
+        }
+
         try (PreparedStatement ps = conn.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS)) {
 
             int i = 1;
             ps.setString(i++, entidad.getNroHistoria());
-            // Conversión segura de Enum (Java) a String (BD)
             ps.setString(i++, entidad.getGrupoSanguineo() != null ? entidad.getGrupoSanguineo().getValor() : null); 
             ps.setString(i++, entidad.getAntecedentes());
             ps.setString(i++, entidad.getMedicacionActual());
             ps.setString(i++, entidad.getObservaciones());
             ps.setBoolean(i++, entidad.isEliminado());
+            ps.setLong(i++, pacienteId);
 
             int affectedRows = ps.executeUpdate();
             if (affectedRows == 0) {
@@ -105,7 +108,6 @@ public class HistoriaClinicaDao implements GenericDao<HistoriaClinica> {
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 if (rs.next()) {
                     entidad.setId(rs.getLong(1));
-                    // System.out.println("DEBUG: HistoriaClinica creada con ID: " + entidad.getId());
                 } else {
                     throw new SQLException("Fallo al crear la Historia Clinica, no se obtuvo ID generado.");
                 }
@@ -113,6 +115,11 @@ public class HistoriaClinicaDao implements GenericDao<HistoriaClinica> {
             return entidad;
         }
     }
+     @Override
+    public HistoriaClinica crear(HistoriaClinica entidad, Connection conn) throws SQLException {
+    throw new UnsupportedOperationException("Error, la que debes llamar es crear(HistoriaClinica, Connection, long pacienteId) en su lugar.");
+        }
+
 
     /**
      * Lee una Historia Clínica por su ID (solo registros activos: eliminado = FALSE).
@@ -188,7 +195,7 @@ public class HistoriaClinicaDao implements GenericDao<HistoriaClinica> {
             ps.setString(i++, entidad.getAntecedentes());
             ps.setString(i++, entidad.getMedicacionActual());
             ps.setString(i++, entidad.getObservaciones());
-            ps.setLong(i++, entidad.getId()); // Parámetro para la cláusula WHERE
+            ps.setLong(i++, entidad.getId());
 
             int rows = ps.executeUpdate();
             if (rows == 0) {
