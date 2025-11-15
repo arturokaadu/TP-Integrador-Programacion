@@ -30,17 +30,17 @@ import java.util.List;
 public class PacienteDao implements GenericDao<Paciente> {
 
     // --- Constantes SQL (Consultas con JOIN para incluir HistoriaClinica) ---
-    private static final String INSERT_SQL = "INSERT INTO paciente (nombre, apellido, dni, fecha_nacimiento, fk_historia_clinica, eliminado) VALUES (?, ?, ?, ?, ?, ?)";
+    private static final String INSERT_SQL = "INSERT INTO paciente (nombre, apellido, dni, fecha_nacimiento, eliminado) VALUES (?, ?, ?, ?, ?)";
     // SELECT_BY_ID incluye un LEFT JOIN para obtener los datos de la HistoriaClinica asociada (si existe).
-    private static final String SELECT_BY_ID_SQL = "SELECT p.*, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON p.fk_historia_clinica = hc.id WHERE p.id = ? AND p.eliminado = FALSE";
-    private static final String UPDATE_SQL = "UPDATE paciente SET nombre = ?, apellido = ?, dni = ?, fecha_nacimiento = ?, fk_historia_clinica = ? WHERE id = ?";
+    private static final String SELECT_BY_ID_SQL = "SELECT p.*, hc.id as hc_id, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON hc.paciente_id = p.id WHERE p.id = ? AND p.eliminado = FALSE";
+    private static final String UPDATE_SQL = "UPDATE paciente SET nombre = ?, apellido = ?, dni = ?, fecha_nacimiento = ? WHERE id = ?";
     private static final String DELETE_SQL = "UPDATE paciente SET eliminado = TRUE WHERE id = ?";
     private static final String RECOVER_SQL = "UPDATE paciente SET eliminado = FALSE WHERE id = ?";
-    private static final String SELECT_ALL_ACTIVE_SQL = "SELECT p.*, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON p.fk_historia_clinica = hc.id WHERE p.eliminado = FALSE";
-    private static final String SELECT_BY_DNI_SQL = "SELECT p.*, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON p.fk_historia_clinica = hc.id WHERE p.dni = ? AND p.eliminado = FALSE";
+    private static final String SELECT_ALL_ACTIVE_SQL = "SELECT p.*, hc.id as hc_id, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON hc.paciente_id = p.id WHERE p.eliminado = FALSE";
+    private static final String SELECT_BY_DNI_SQL = "SELECT p.*, hc.id as hc_id, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON hc.paciente_id = p.id WHERE p.dni = ? AND p.eliminado = FALSE";
     
     // --- CONSTANTES SQL para manejo del Borrado Lógico ---
-    private static final String SELECT_ALL_DELETED_SQL = "SELECT p.*, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON p.fk_historia_clinica = hc.id WHERE p.eliminado = TRUE";
+    private static final String SELECT_ALL_DELETED_SQL = "SELECT p.*, hc.id as hc_id, hc.nro_historia, hc.grupo_sanguineo, hc.antecedentes, hc.medicacion_actual, hc.observaciones, hc.eliminado as hc_eliminado FROM paciente p LEFT JOIN historia_clinica hc ON hc.paciente_id = p.id WHERE p.eliminado = TRUE";
     private static final String COUNT_DELETED_SQL = "SELECT COUNT(*) FROM paciente WHERE eliminado = TRUE";
 
 
@@ -70,7 +70,7 @@ public class PacienteDao implements GenericDao<Paciente> {
         Paciente paciente = new Paciente(id, eliminado, nombre, apellido, dni, fechaNacimiento);
 
         // --- 2. Mapear HistoriaClinica (Relación 1:1) ---
-        long fkHistoriaClinica = rs.getLong("fk_historia_clinica");
+        long fkHistoriaClinica = rs.getLong("hc_id");
 
         // Solo mapeamos HC si la FK existe y tiene datos asociados (resultado del LEFT JOIN)
         if (!rs.wasNull() && fkHistoriaClinica > 0) {
@@ -124,14 +124,6 @@ public class PacienteDao implements GenericDao<Paciente> {
                 ps.setDate(i++, java.sql.Date.valueOf(entidad.getFechaNacimiento()));
             } else {
                 ps.setNull(i++, java.sql.Types.DATE);
-            }
-
-            // 2. Manejo de la Foreign Key (FK) a HistoriaClinica
-            HistoriaClinica hc = entidad.getHistoriaClinica();
-            if (hc != null && hc.getId() > 0) {
-                ps.setLong(i++, hc.getId()); // Setea la FK si la HC existe
-            } else {
-                ps.setNull(i++, java.sql.Types.BIGINT); // Setea NULL si no hay HC asociada
             }
 
             ps.setBoolean(i++, entidad.isEliminado());
@@ -313,14 +305,6 @@ public class PacienteDao implements GenericDao<Paciente> {
                 ps.setDate(i++, java.sql.Date.valueOf(entidad.getFechaNacimiento()));
             } else {
                 ps.setNull(i++, java.sql.Types.DATE);
-            }
-
-            // 2. Manejo de la Foreign Key (FK) a HistoriaClinica
-            HistoriaClinica hc = entidad.getHistoriaClinica();
-            if (hc != null && hc.getId() > 0) {
-                ps.setLong(i++, hc.getId());
-            } else {
-                ps.setNull(i++, java.sql.Types.BIGINT);
             }
 
             ps.setLong(i++, entidad.getId()); // Parámetro para la cláusula WHERE
