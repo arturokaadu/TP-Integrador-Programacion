@@ -31,7 +31,7 @@ El diseño fue realizado previamente mediante un **diagrama UML** que guía la i
 Antes de ejecutar la aplicación, es necesario crear la base de datos **`tfi_bd1`**, el usuario de desarrollo y las tablas.
 Para esto, se incluyen tres scripts SQL en el directorio `/sql`:
 
-1. **`01_esquema.sql`** → Crea la base `tfi_bd1` y sus tablas, con claves primarias, foráneas e índices necesarios (incluye la relación 1→1 entre `paciente` e `historia_clinica`).
+1. **`01_esquema.sql`** → Crea la base `tfi_bd1` y sus tablas, con claves primarias, foráneas e índices necesarios (incluye la relación 1→1 entre `paciente` e `historia_clinica`). Además, se agregó en el campo `id` de ambas tablas la propiedad `AUTO_INCREMENT` para que MySQL genere automáticamente los identificadores únicos de cada registro y se facilite la inserción de nuevos datos desde el código Java.
 2. **`02_catalogos.sql`** → Crea y carga las tablas semilla.
 3. **`03_carga_masiva.sql`** → Inserta datos de prueba (pacientes e historias clínicas).
 
