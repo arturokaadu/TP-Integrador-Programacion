@@ -8,7 +8,7 @@ Este proyecto tiene como objetivo implementar un **Sistema CRUD** completo basad
 
 El diseño fue realizado previamente mediante un **diagrama UML** que guía la implementación.
 
- ### [Enlace al video](https://drive.google.com/file/d/14A-1EjuXVNCNKXlbcA3MP9fnz1b5nTNe/view?usp=drive_link)
+ ### [Enlace al video](https://drive.google.com/file/d/15E2SXZcr1WYjByjG0MWyZCKWZzaSg0Ck/view?usp=drive_link)
 
 ###  Objetivos Académicos
 
