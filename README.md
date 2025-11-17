@@ -62,7 +62,7 @@ El código está organizado en una arquitectura de cinco capas lógicas.
  ├── config/
  │    ├── DatabaseConnection.java
  │    └── TransactionManager.java
- ├── model/
+ ├── entites/
  │    ├── Base.java
  │    ├── Paciente.java
  │    ├── HistoriaClinica.java
@@ -71,11 +71,11 @@ El código está organizado en una arquitectura de cinco capas lógicas.
  │    ├── GenericDao.java
  │    ├── PacienteDao.java
  │    └── HistoriaClinicaDao.java
- ├── service/
+ ├── services/
  │    ├── GenericService.java
  │    ├── PacienteService.java
  │    └── HistoriaClinicaService.java
- └── app/
+ └── main/
       ├── AppMenu.java
       └── Main.java
 
@@ -90,10 +90,10 @@ El código está organizado en una arquitectura de cinco capas lógicas.
 | Capa | Propósito | Componentes Clave | 
  | ----- | ----- | ----- | 
 | **Config** | Manejo de la conexión y control de la transaccionalidad. Evita instanciación directa (constructores privados). | `DatabaseConnection`, `TransactionManager` (implementa `AutoCloseable`). | 
-| **Model** | Entidades de negocio, aplicando POO (herencia de `Base`, encapsulamiento, composición). | `Paciente`, `HistoriaClinica`, `Base`, `TipoSangre` (Enum). | 
+| **Entite** | Entidades de negocio, aplicando POO (herencia de `Base`, encapsulamiento, composición). | `Paciente`, `HistoriaClinica`, `Base`, `TipoSangre` (Enum). | 
 | **DAO** | Acceso y persistencia de datos (CRUD) con JDBC. Reconstrucción de la relación 1→1 con `LEFT JOIN`. | `GenericDAO<T>`, `PacienteDao`, `HistoriaClinicaDao`. | 
-| **Service** | **Orquestador** del sistema. Contiene la lógica de negocio, validaciones y control transaccional (llama al `TransactionManager`). | `GenericService<T>`, `PacienteService`, `HistoriaClinicaService`. | 
-| **App** | Capa de Presentación. Punto de entrada y menú interactivo en la consola. Solo utiliza la capa Service. | `Main`, `AppMenu`. | 
+| **Services** | **Orquestador** del sistema. Contiene la lógica de negocio, validaciones y control transaccional (llama al `TransactionManager`). | `GenericService<T>`, `PacienteService`, `HistoriaClinicaService`. | 
+| **Main** | Capa de Presentación. Punto de entrada y menú interactivo en la consola. Solo utiliza la capa Service. | `Main`, `AppMenu`. | 
 
 ## ▶ Cómo Ejecutar el Sistema
 
