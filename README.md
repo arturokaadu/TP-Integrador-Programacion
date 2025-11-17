@@ -95,29 +95,10 @@ El código está organizado en una arquitectura de cinco capas lógicas.
 | **Services** | **Orquestador** del sistema. Contiene la lógica de negocio, validaciones y control transaccional (llama al `TransactionManager`). | `GenericService<T>`, `PacienteService`, `HistoriaClinicaService`. | 
 | **Main** | Capa de Presentación. Punto de entrada y menú interactivo en la consola. Solo utiliza la capa Service. | `Main`, `AppMenu`. | 
 
-## ▶ Cómo Ejecutar el Sistema
+## Cómo Ejecutar el Sistema
+Primero los sql como se indico al inicio y luego pasamos a la app de java
 
-Asegúrese de que los pasos de configuración de la base de datos se hayan completado antes de iniciar la aplicación.
-
-1. **Clonar y Acceder:**
-   Clonar el repositorio y navegar a la carpeta raíz.
-
-2. **Compilar (Opcional):**
-   Utilice el wrapper de Gradle para construir el proyecto:
-
-   ```bash
-   ./gradlew build
-   ```
-
-3. **Ejecutar la Aplicación:**
-   Utilice la tarea `run` para iniciar la aplicación principal y el menú de consola:
-
-   ```bash
-   ./gradlew run
-
-Una vez ejecutado, el usuario podrá interactuar con las funcionalidades CRUD a través del `AppMenu`.
-
-###  Explicación del Flujo de la Aplicación
+###  Explicación del Flujo de la Aplicación con un ejemplo de agregar paciente
 
 1. **Inicio:** `Main` inicializa y lanza el `AppMenu`.
 
