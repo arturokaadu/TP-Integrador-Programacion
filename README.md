@@ -98,8 +98,7 @@ El código está organizado en una arquitectura de cinco capas lógicas.
 | **Main** | Capa de Presentación. Punto de entrada y menú interactivo en la consola. Solo utiliza la capa Service. | `Main`, `AppMenu`. | 
 
 ## Cómo Ejecutar el Sistema
-Primero los sql como se indico al inicio y luego pasamos a la app de java
-
+En primer lugar, corresponde ejecutar los archivos SQL según lo previamente indicado y, posteriormente, se procede con la ejecución de la aplicación desarrollada en Java.
 ###  Explicación del Flujo de la Aplicación con un ejemplo de agregar paciente
 
 1. **Inicio:** `Main` inicializa y lanza el `AppMenu`.
