@@ -8,7 +8,9 @@ Este proyecto tiene como objetivo implementar un **Sistema CRUD** completo basad
 
 El diseño fue realizado previamente mediante un **diagrama UML** que guía la implementación.
 
- ### [Enlace al video](https://drive.google.com/file/d/15E2SXZcr1WYjByjG0MWyZCKWZzaSg0Ck/view?usp=drive_link)
+### [Enlace al video](https://drive.google.com/file/d/15E2SXZcr1WYjByjG0MWyZCKWZzaSg0Ck/view?usp=drive_link)
+
+### [Informe en PDF](./TFI_PII_Comisiones3-8-12-15_Grupo54_Brahim_Pollini-Kaadu-Monardes_Casas-Yarde_Buller.pdf)
 
 ###  Objetivos Académicos
 
@@ -28,12 +30,12 @@ El diseño fue realizado previamente mediante un **diagrama UML** que guía la i
 
 ##  Requisitos del Sistema
 
-| Componente | Versión Requerida | 
- | ----- | ----- | 
-| Java JDK | 17 o superior | 
-| MySQL | 8.0 o superior | 
-| Gradle | 8.12 (incluido wrapper) | 
-| Sistema Operativo | Windows, Linux o macOS | 
+| Componente | Versión Requerida |
+ | ----- | ----- |
+| Java JDK | 17 o superior |
+| MySQL | 8.0 o superior |
+| Gradle | 8.12 (incluido wrapper) |
+| Sistema Operativo | Windows, Linux o macOS |
 
 ##  Creación de la Base de Datos
 
@@ -89,16 +91,17 @@ El código está organizado en una arquitectura de cinco capas lógicas.
 
 ###  Descripción de las Capas
 
-| Capa | Propósito | Componentes Clave | 
- | ----- | ----- | ----- | 
-| **Config** | Manejo de la conexión y control de la transaccionalidad. Evita instanciación directa (constructores privados). | `DatabaseConnection`, `TransactionManager` (implementa `AutoCloseable`). | 
-| **Entities** | Entidades de negocio, aplicando POO (herencia de `Base`, encapsulamiento, composición). | `Paciente`, `HistoriaClinica`, `Base`, `TipoSangre` (Enum). | 
-| **DAO** | Acceso y persistencia de datos (CRUD) con JDBC. Reconstrucción de la relación 1→1 con `LEFT JOIN`. | `GenericDAO<T>`, `PacienteDao`, `HistoriaClinicaDao`. | 
-| **Services** | **Orquestador** del sistema. Contiene la lógica de negocio, validaciones y control transaccional (llama al `TransactionManager`). | `GenericService<T>`, `PacienteService`, `HistoriaClinicaService`. | 
-| **Main** | Capa de Presentación. Punto de entrada y menú interactivo en la consola. Solo utiliza la capa Service. | `Main`, `AppMenu`. | 
+| Capa | Propósito | Componentes Clave |
+ | ----- | ----- | ----- |
+| **Config** | Manejo de la conexión y control de la transaccionalidad. Evita instanciación directa (constructores privados). | `DatabaseConnection`, `TransactionManager` (implementa `AutoCloseable`). |
+| **Entities** | Entidades de negocio, aplicando POO (herencia de `Base`, encapsulamiento, composición). | `Paciente`, `HistoriaClinica`, `Base`, `TipoSangre` (Enum). |
+| **DAO** | Acceso y persistencia de datos (CRUD) con JDBC. Reconstrucción de la relación 1→1 con `LEFT JOIN`. | `GenericDAO<T>`, `PacienteDao`, `HistoriaClinicaDao`. |
+| **Services** | **Orquestador** del sistema. Contiene la lógica de negocio, validaciones y control transaccional (llama al `TransactionManager`). | `GenericService<T>`, `PacienteService`, `HistoriaClinicaService`. |
+| **Main** | Capa de Presentación. Punto de entrada y menú interactivo en la consola. Solo utiliza la capa Service. | `Main`, `AppMenu`. |
 
 ## Cómo Ejecutar el Sistema
 En primer lugar, corresponde ejecutar los archivos SQL según lo previamente indicado y, posteriormente, se procede con la ejecución de la aplicación desarrollada en Java.
+
 ###  Explicación del Flujo de la Aplicación con un ejemplo de agregar paciente
 
 1. **Inicio:** `Main` inicializa y lanza el `AppMenu`.
@@ -128,4 +131,4 @@ Belén Yarde Buller - Comisión 3
 
 ##  Licencia
 
-Este proyecto fue desarrollado exclusivamente para fines académicos del curso de Programación 2.   
+Este proyecto fue desarrollado exclusivamente para fines académicos del curso de Programación 2.
