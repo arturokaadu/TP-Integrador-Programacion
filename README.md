@@ -124,10 +124,10 @@ En primer lugar, corresponde ejecutar los archivos SQL según lo previamente ind
 
 ##  Autores
 
-Emanuel Aaron Brahim Pollini - Comisión 12
-Arturo Alonso Kaadú - Comisión 15
-Agustin Monardes Casas - Comisión 8
-Belén Yarde Buller - Comisión 3
+- Emanuel Aaron Brahim Pollini - Comisión 12
+- Arturo Alonso Kaadú - Comisión 15
+- Agustin Monardes Casas - Comisión 8
+- Belén Yarde Buller - Comisión 3
 
 ##  Licencia
 
